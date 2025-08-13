@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Statieradio • Live</title>
+  <style>
+    :root{--bg:#0b0c0f;--card:#12141a;--muted:#a3a9b6;--text:#e9edf3;--acc:#37c6ff;--mint:#5eead4}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Arial}
+    .wrap{max-width:760px;margin:0 auto;padding:28px}
+    .head{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+    .logo{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#2b77e5,#5eead4)}
+    h1{font-size:22px;margin:0} .muted{color:var(--muted)}
+    .card{background:var(--card);border:1px solid #1d2230;border-radius:18px;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+    .grid{display:grid;grid-template-columns:160px 1fr;gap:16px}
+    .cover{width:160px;height:160px;border-radius:14px;object-fit:cover;background:#0f121a}
+    .title{font-size:20px;font-weight:700;margin:2px 0 4px} .artist{color:var(--muted)}
+    .badge{display:inline-flex;align-items:center;gap:8px;background:#0e2430;color:#8fe5ff;border:1px solid #103040;border-radius:999px;padding:6px 10px;font-size:13px}
+    .dot{width:8px;height:8px;border-radius:50%;background:#37c6ff;animation:pulse 1.6s infinite}
+    @keyframes pulse{0%{transform:scale(.8);opacity:.6}50%{transform:scale(1.2);opacity:1}100%{transform:scale(.8);opacity:.6}}
+    .controls{display:flex;align-items:center;gap:10px;margin-top:14px}
+    .btn{background:#1a2233;border:1px solid #273147;border-radius:12px;color:#e9edf3;padding:10px 14px;cursor:pointer}
+    .btn:hover{border-color:#3a4d6f}
+    .play{background:var(--acc);border-color:var(--acc);color:#051018;font-weight:800;border-radius:999px;padding:12px 18px}
+    .range{appearance:none;width:180px;height:6px;border-radius:999px;background:#1a2233;outline:none}
+    .range::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:var(--mint);cursor:pointer}
+    .progress{height:4px;background:#203047;border-radius:999px;overflow:hidden;margin:12px 0}
+    .bar{height:100%;width:30%;background:linear-gradient(90deg,var(--acc),var(--mint));animation:move 10s linear infinite}
+    @keyframes move{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+    .foot{margin-top:16px;color:var(--muted);font-size:13px;text-align:center}
+    .donate{position:fixed;right:20px;bottom:20px;background:var(--mint);color:#06201a;border:0;border-radius:999px;padding:12px 16px;font-weight:800;box-shadow:0 8px 28px rgba(0,0,0,.26);text-decoration:none}
+    @media (max-width:640px){.grid{grid-template-columns:1fr}.cover{width:100%;height:220px}}
+  </style>
+</head>
+<body>
+  <a id="donate" class="donate" href="#" target="_blank" rel="noopener">Donate</a>
+  <div class="wrap">
+    <div class="head">
+      <div class="logo"></div>
+      <div>
+        <h1>statieradio</h1>
+        <div class="muted">live stream • powered by AzuraCast</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <img id="cover" class="cover" alt="cover"
+             src="https://dummyimage.com/600x600/10131a/8892a6&text=Radio" />
+        <div>
+          <div class="badge"><span class="dot"></span><span id="live">Now Playing • Loading…</span></div>
+          <div class="title" id="title">—</div>
+          <div class="artist" id="artist">—</div>
+
+          <div class="progress"><div class="bar"></div></div>
+
+          <div class="controls">
+            <button id="volDown" class="btn" aria-label="Vol -">–</button>
+            <button id="play" class="play" aria-label="Play/Pause">► Play</button>
+            <button id="volUp" class="btn" aria-label="Vol +">＋</button>
+            <input id="vol" class="range" type="range" min="0" max="100" value="70" />
+          </div>
+
+          <audio id="audio" preload="none" crossorigin="anonymous"></audio>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">© <span id="year"></span> statieradio • made with ❤️</div>
+  </div>
+
+  <script>
+    // ======== CONFIG – ÎNLOCUIEȘTE CU VALORILE TALE =========
+    const CONFIG = {
+      TUNNEL_URL: 'https://nano-extreme-friend-evidence.trycloudflare.com', // ← URL-ul tău Cloudflare Tunnel
+      URL_STUB:   'statieradio',                                             // ← URL Stub al stației
+      STRIPE:     'https://buy.stripe.com/EXEMPLU_LINK'                      // ← Payment Link (opțional)
+    };
+    // =========================================================
+
+    const els = {
+      audio:  document.getElementById('audio'),
+      play:   document.getElementById('play'),
+      vol:    document.getElementById('vol'),
+      vdn:    document.getElementById('volDown'),
+      vup:    document.getElementById('volUp'),
+      title:  document.getElementById('title'),
+      artist: document.getElementById('artist'),
+      cover:  document.getElementById('cover'),
+      live:   document.getElementById('live'),
+      donate: document.getElementById('donate')
+    };
+    document.getElementById('year').textContent = new Date().getFullYear();
+    els.donate.href = CONFIG.STRIPE;
+
+    // Setăm sursa audio (MP3) + fallback OGG
+    const MP3 = `${CONFIG.TUNNEL_URL}/listen/${CONFIG.URL_STUB}/stream.mp3`;
+    const OGG = `${CONFIG.TUNNEL_URL}/listen/${CONFIG.URL_STUB}/stream.ogg`;
+    els.audio.src = MP3;
+    // dacă vrei fallback OGG, de-comentează:
+    // els.audio.innerHTML = `<source src="${MP3}" type="audio/mpeg"><source src="${OGG}" type="audio/ogg">`;
+
+    // Play/Pause
+    let playing = false;
+    els.play.onclick = async () => {
+      try {
+        if (!playing) { await els.audio.play(); playing = true; els.play.textContent = '❚❚ Pause'; }
+        else { els.audio.pause(); playing = false; els.play.textContent = '► Play'; }
+      } catch(e){ console.warn(e); }
+    };
+
+    // Volume
+    const setVol = v => { v = Math.min(100, Math.max(0, v)); els.vol.value = v; els.audio.volume = v/100; };
+    setVol(parseInt(els.vol.value,10));
+    els.vol.oninput = e => setVol(e.target.value);
+    els.vdn.onclick = () => setVol(parseInt(els.vol.value,10)-10);
+    els.vup.onclick = () => setVol(parseInt(els.vol.value,10)+10);
+
+    // Now Playing – varianta statică (mai prietenoasă cu site-uri statice)
+    const NP_STATIC = `${CONFIG.TUNNEL_URL}/api/nowplaying_static/${CONFIG.URL_STUB}.json`;
+
+    async function refreshNP(){
+      try{
+        const r = await fetch(NP_STATIC, {cache:'no-store'});
+        const data = await r.json();
+        const np = Array.isArray(data) ? data[0] : data;
+        const song = (np?.now_playing?.song) || np?.song || {};
+        els.title.textContent = song.title || 'Live';
+        els.artist.textContent = song.artist || '';
+        if (song.art) els.cover.src = song.art;
+
+        const isLive = (np?.live && (np.live.is_live || np.live.live));
+        els.live.textContent = isLive
+          ? `Now Playing • DJ: ${np.live.streamer_name || np.live.name || 'On Air'}`
+          : 'Now Playing • AutoDJ';
+
+      } catch(e){
+        console.warn('NP error', e);
+      }
+    }
+    refreshNP();
+    setInterval(refreshNP, 15000);
+
+    // Reconectare automată dacă streamul cade
+    els.audio.addEventListener('error', () => {
+      setTimeout(() => { const t = Date.now(); els.audio.src = MP3 + `?v=${t}`; if (playing) els.audio.play().catch(()=>{}); }, 1500);
+    });
+  </script>
+</body>
+</html>
